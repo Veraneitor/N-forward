@@ -1,0 +1,770 @@
+# ===== IMPORTACIÓN DE LIBRERIAS =====
+import random, os, csv, copy 
+from psychopy import visual, event, core, gui 
+import gc
+def cleanup_memory():
+    gc.collect()
+# ===== DEFINICIÓN DE VARIABLES =====
+ANIMALES_IMG = [
+    'cabra.PNG', 'cocodrilo.PNG', 'elefante.PNG', 'gallo.PNG', 'gorila.PNG',
+    'jirafa.PNG', 'leon.PNG'
+]
+CASAS_IMG    = [
+    'casa_cabra.PNG', 'casa_cocodrilo.PNG', 'casa_elefante.PNG', 'casa_gallo.PNG', 'casa_gorila.PNG',
+    'casa_jirafa.PNG', 'casa_leon.PNG'
+]
+AVATAR_IMG = 'avatar.png'
+GRID_SIZE = 7
+ 
+## ===== AJUSTE DE PANTLLA =====
+try:
+    from ctypes import windll
+    scr_res = [windll.user32.GetSystemMetrics(0), windll.user32.GetSystemMetrics(1)]
+except:
+    scr_res = [1280, 720]
+
+# Calcular el tamaño disponible correctamente
+MARGIN_TOP_RATIO = 0.15  # 15% del alto de pantalla para margen superior
+MARGIN_BOTTOM_RATIO = 0.05  # 5% del alto de pantalla para margen inferior
+MARGIN_SIDES_RATIO = 0.1  # 10% del ancho de pantalla para márgenes laterales
+
+available_h = scr_res[1] * (1 - MARGIN_TOP_RATIO - MARGIN_BOTTOM_RATIO)
+available_w = scr_res[0] * (1 - 2 * MARGIN_SIDES_RATIO)
+
+# El tamaño de celda debe ser el menor entre ancho y alto disponibles dividido por GRID_SIZE
+cell_size = int(min(available_h / GRID_SIZE, available_w / GRID_SIZE) * 1.4)
+GRID_PIX = cell_size * GRID_SIZE
+
+# Centrar la cuadrícula
+ORIGIN_X = 0  # Centrado horizontalmente
+ORIGIN_Y = scr_res[1] * (MARGIN_BOTTOM_RATIO - MARGIN_TOP_RATIO) / 2  # Ajustado para el centrado vertical
+ORIGIN = (ORIGIN_X - GRID_PIX / 2, ORIGIN_Y + GRID_PIX / 2)
+
+# ===== ENSAYOS =====
+ensayos =[
+    {  # === E1 ===
+        'animal_pos': [(2, 5), (4, 5)],
+        'home_pos': [(1, 5), (3, 5)],
+        'avatar_pos': (5, 5),
+        'mov_limit': 4
+    },
+    {  # === E2 ===c
+        'animal_pos': [(4, 1), (0, 3)],
+        'home_pos': [(2, 2), (6, 3)],
+        'avatar_pos': (6, 6),
+        'mov_limit': 19
+    },
+    {  # === E3 ===
+        'animal_pos': [(0, 3), (6, 3)],
+        'home_pos': [(4, 2), (0, 4)],
+        'avatar_pos': (3, 3),
+        'mov_limit': 16
+    },
+    {  # === E4 ===
+        'animal_pos': [(1, 1), (4, 3)],
+        'home_pos': [(4, 1), (1, 3)],
+        'avatar_pos': (6, 3),
+        'mov_limit': 10
+    },
+    {  # === E5 ===c
+        'animal_pos': [(0, 1), (2, 1), (1, 6)],
+        'home_pos': [(1, 4), (2, 5), (0, 3)],
+        'avatar_pos': (3, 3),
+        'mov_limit': 17
+    },
+    {  # === E6 ===
+        'animal_pos': [(1, 2), (4, 2), (4, 5)],
+        'home_pos': [(1, 1), (5, 1), (5, 5)],
+        'avatar_pos': (1, 5),
+        'mov_limit': 16
+    },
+    {  # === E7 ===c
+        'animal_pos': [(5, 0), (4, 2), (5, 3)],
+        'home_pos': [(3, 3), (6, 6), (3, 0)],
+        'avatar_pos': (4, 4),
+        'mov_limit': 18
+    },
+    {  # === E8 ===
+        'animal_pos': [(3, 3), (5, 3), (3, 1)],
+        'home_pos': [(2, 4), (5, 4), (2, 1)],
+        'avatar_pos': (5, 1),
+        'mov_limit': 12
+    },
+    {  # === E9 ===c
+        'animal_pos': [(5, 6), (1, 5), (6, 2), (3, 3)],
+        'home_pos': [(1, 2), (3, 2), (3, 0), (0, 0)],
+        'avatar_pos': (1, 1),
+        'mov_limit': 27
+    },
+    {  # === E10 ===
+        'animal_pos': [(3, 5), (5, 3), (3, 1), (1, 3)],
+        'home_pos': [(1, 5), (5, 5), (5, 1), (1, 1)],
+        'avatar_pos': (3, 3),
+        'mov_limit': 16
+    },
+    {  # === E11 ===c
+        'animal_pos': [(6, 4), (5, 4), (1, 5), (6, 2)],
+        'home_pos': [(0, 4), (5, 3), (5, 5), (0, 2)],
+        'avatar_pos': (4, 4),
+        'mov_limit': 20
+    },
+    {  # === E12 ===
+        'animal_pos': [(6, 3), (3, 0), (0, 3), (3, 6)],
+        'home_pos': [(5, 3), (3, 1), (1, 3), (3, 5)],
+        'avatar_pos': (3, 3),
+        'mov_limit': 22
+    },
+    {  # === E13 ===c
+        'animal_pos': [(3, 1), (5, 4), (2, 3), (0, 5), (3, 3)],
+        'home_pos': [(6, 5), (1, 4), (3, 2), (3, 0), (4, 3)],
+        'avatar_pos': (3, 5),
+        'mov_limit': 25
+    },
+    {  # === E14 ===
+        'animal_pos': [(3, 1), (1, 2), (5, 2), (1, 4), (5, 4)],
+        'home_pos': [(3, 2), (1, 1), (5, 1), (1, 5), (5, 5)],
+        'avatar_pos': (3, 0),
+        'mov_limit': 19
+    },
+    {  # === E15 ===c
+        'animal_pos': [(1, 2), (2, 4), (5, 2), (6, 2), (2, 2)],
+        'home_pos': [(3, 1), (4, 5), (3, 5), (3, 0), (5, 1)],
+        'avatar_pos': (3, 3),
+        'mov_limit': 21
+    },
+    {  # === E16 ===
+        'animal_pos': [(0, 4), (1, 0), (0, 2), (3, 0), (5, 0)],
+        'home_pos': [(0, 3), (2, 0), (0, 1), (4, 0), (6, 0)],
+        'avatar_pos': (0, 5),
+        'mov_limit': 11
+    },
+    {  # === E17 ===c
+        'animal_pos': [(1, 3), (3, 1), (5, 3), (1, 5), (5, 5), (3, 5)],
+        'home_pos': [(2, 2), (0, 4), (4, 4), (4, 2), (2, 4), (6, 4)],
+        'avatar_pos': (3, 3),
+        'mov_limit': 24
+    },
+    {  # === E18 ===
+        'animal_pos': [(2, 2), (2, 3), (4, 3), (4, 2), (2, 4), (4, 4)],
+        'home_pos': [(0, 2), (0, 3), (6, 3), (6, 2), (0, 4), (6, 4)],
+        'avatar_pos': (3, 3),
+        'mov_limit': 18
+    },
+    {  # === E19 ===c
+        'animal_pos': [(0, 2), (1, 1), (1, 2), (5, 1), (6, 2), (6, 5)],
+        'home_pos': [(5, 2), (6, 1), (5, 4), (5, 5), (0, 1), (6, 5)],
+        'avatar_pos': (4, 6),
+        'mov_limit': 24
+    },
+    {  # === E20 ===
+        'animal_pos': [(1, 3), (2, 3), (4, 3), (5, 3), (3, 2), (3, 4)],
+        'home_pos': [(3, 1), (3, 0), (3, 5), (3, 6), (0, 3), (6, 3)],
+        'avatar_pos': (3, 3),
+        'mov_limit': 25
+    }
+]
+
+# ===== CODIGO DE ENSAYOS =====
+N_ENSAYOS = len(ensayos)
+for idx, ensayo in enumerate(ensayos):
+    ensayo['id'] = f"E{idx + 1}"
+
+# ===== DATOS DEL PARTICIPANTE =====
+info = {'Iniciales': '', 'Sesion':'', 'Orden_ensayos': ['Secuencial', 'Aleatorio']}
+dlg = gui.DlgFromDict(info, title='Datos de Identificacion')
+if not dlg.OK or not info['Iniciales'] or not info['Sesion']:
+    core.quit()
+
+outdir = "Resultados"
+os.makedirs(outdir, exist_ok=True)
+csvfile = os.path.join(
+    outdir, f"{info['Iniciales']}_sesion_{info['Sesion']}.csv"
+)
+
+# ===== ACOMODO DE VARIABLES Y CUADRICULA =====
+win = visual.Window(size=scr_res, fullscr=True, color='white', units='pix')
+
+
+def draw_grid(animals, homes, avatar_pos, carrying, moves_left, time_left, controles_txt, planned_moves=None,
+              mostrar_movs=True, mostrar_tiempo=True, planning_mode=False):
+    # Calcular posiciones de texto de manera responsive
+    grid_top_y = ORIGIN[1]
+    grid_bottom_y = ORIGIN[1] - GRID_PIX
+    grid_right_x = ORIGIN[0] + GRID_PIX
+
+    # Espaciado responsive basado en el tamaño de pantalla
+    text_spacing = scr_res[1] * 0.045  # 4% de la altura de pantalla
+    text_height = max(30, scr_res[1] * 0.025)  # Altura de texto adaptativa
+
+    # Posiciones de texto superiores
+    y_tiempo = grid_top_y + text_spacing * 4
+    y_movs = y_tiempo - text_spacing
+    y_controles = y_movs - text_spacing
+
+    if mostrar_tiempo:
+        visual.TextStim(win, text=f"Tiempo: {int(time_left)} s",
+                       pos=(scr_res[0] * 0.25, y_tiempo),
+                       height=text_height, color='crimson').draw()
+    if mostrar_movs:
+        visual.TextStim(win, text=f"Movimientos: {moves_left}",
+                       pos=(0, y_movs),
+                       height=text_height, color='black').draw()
+
+    # Mostrar controles según el modo
+    if planning_mode:
+        # Verificar si se pueden usar todos los movimientos
+        moves_needed = moves_left
+        can_execute = len(planned_moves) == moves_needed if planned_moves else False
+
+        if can_execute:
+            controles_completos = controles_txt + " | BACKSPACE: Borrar último"
+            color_controles = 'green'
+        else:
+            controles_completos = controles_txt + f" | Necesitas {moves_needed} movimientos para ejecutar | BACKSPACE: Borrar último"
+            color_controles = 'red'
+
+
+        # ===== PANEL LATERAL PARA EL PLAN =====
+        # Posición del panel lateral (a la derecha de la cuadrícula)
+        panel_x = grid_right_x + scr_res[0] * 0.20  # 8% del ancho de pantalla como margen
+        panel_y_start = grid_top_y
+
+        # PANEL GRANDE PARA EJECUTAR PLAN (Ahora a la izquierda)
+        if can_execute:
+            visual.TextStim(win, text="PRESIONA ENTER\nPARA EJECUTAR\nEL PLAN",
+                           pos=(ORIGIN[0] - scr_res[0] * 0.20, panel_y_start + text_spacing * 2), # Ajuste para mover a la izquierda
+                           height=text_height * 1.8, color='green', bold=True,
+                           anchorHoriz='center', anchorVert='center').draw()
+
+        # Título del panel de la derecha
+        visual.TextStim(win, text="PLAN DE MOVIMIENTOS",
+                       pos=(panel_x, panel_y_start),
+                       height=text_height * 1.2, color='blue', bold=True).draw()
+
+        # Mostrar movimientos planeados en el panel lateral
+        if planned_moves:
+            move_symbols = {'up': '↑', 'down': '↓', 'left': '←', 'right': '→'}
+            move_names = {'up': 'arriba', 'down': 'abajo', 'left': 'izquierda', 'right': 'derecha'}
+
+            # Mostrar cada movimiento en una línea separada
+            for i, move in enumerate(planned_moves):
+                move_text = f"{i + 1}. {move_symbols[move]} ({move_names[move]})"
+                y_pos = panel_y_start - (i + 2) * text_spacing * 0.8
+
+                # Colorear diferente el último movimiento agregado
+                color = 'darkblue' if i == len(planned_moves) - 1 else 'blue'
+
+                visual.TextStim(win, text=move_text,
+                               pos=(panel_x, y_pos),
+                               height=text_height * 0.9, color=color).draw()
+
+            # Mostrar progreso
+            progress_text = f"Progreso: {len(planned_moves)}/{moves_needed}"
+            progress_y = panel_y_start - (len(planned_moves) + 3) * text_spacing * 0.8
+            progress_color = 'green' if len(planned_moves) == moves_needed else 'orange'
+
+            visual.TextStim(win, text=progress_text,
+                           pos=(panel_x, progress_y),
+                           height=text_height, color=progress_color, bold=True).draw()
+
+            # Mostrar secuencia compacta también
+            moves_compact = "  ".join([move_symbols[m] for m in planned_moves])
+            compact_y = progress_y - text_spacing * 1.2
+            visual.TextStim(win, text=f"Secuencia: {moves_compact}",
+                           pos=(panel_x, compact_y),
+                           height=text_height * 0.8, color='gray').draw()
+        else:
+            # Mensaje cuando no hay movimientos planeados
+            visual.TextStim(win, text="(Sin movimientos planeados)",
+                           pos=(panel_x, panel_y_start - text_spacing * 2),
+                           height=text_height * 0.9, color='gray', italic=True).draw()
+
+            # Mostrar cuántos movimientos se necesitan
+            visual.TextStim(win, text=f"Necesitas planificar {moves_needed} movimientos",
+                           pos=(panel_x, panel_y_start - text_spacing * 3),
+                           height=text_height * 0.8, color='red').draw()
+    else:
+        visual.TextStim(win, text=controles_txt,
+                       pos=(0, y_controles),
+                       height=text_height * 0.8, color='gray').draw()
+
+    # Dibujar cuadrícula
+    for i in range(GRID_SIZE + 1):
+        # Líneas horizontales
+        visual.Line(win,
+                   start=(ORIGIN[0], ORIGIN[1] - i * cell_size),
+                   end=(ORIGIN[0] + GRID_PIX, ORIGIN[1] - i * cell_size),
+                   lineColor='black', lineWidth=2).draw()
+        # Líneas verticales
+        visual.Line(win,
+                   start=(ORIGIN[0] + i * cell_size, ORIGIN[1]),
+                   end=(ORIGIN[0] + i * cell_size, ORIGIN[1] - GRID_PIX),
+                   lineColor='black', lineWidth=2).draw()
+
+    # Tamaño de imágenes adaptativo
+    img_size = cell_size * 1.2
+
+    # Dibujar casas
+    for idx, pos in enumerate(homes):
+        casa_path = os.path.join('iconos', CASAS_IMG[idx])
+        if os.path.exists(casa_path):
+            x = ORIGIN[0] + cell_size * (pos[0] + 0.5)
+            y = ORIGIN[1] - cell_size * (pos[1] + 0.5)
+            visual.ImageStim(win, image=casa_path, pos=(x, y), size=(img_size, img_size)).draw()
+
+    # Dibujar animales
+    for idx, pos in enumerate(animals):
+        if pos is not None:
+            img_path = os.path.join('iconos', ANIMALES_IMG[idx])
+            if os.path.exists(img_path):
+                x = ORIGIN[0] + cell_size * (pos[0] + 0.5)
+                y = ORIGIN[1] - cell_size * (pos[1] + 0.5)
+                visual.ImageStim(win, image=img_path, pos=(x, y), size=(img_size, img_size)).draw()
+
+    # Dibujar avatar (usar posición de píxeles si se proporciona para animación)
+    avatar_size = cell_size * 0.9
+    avatar_path = os.path.join('iconos', AVATAR_IMG)
+    x = ORIGIN[0] + cell_size * (avatar_pos[0] + 0.5)
+    y = ORIGIN[1] - cell_size * (avatar_pos[1] + 0.5)
+
+    if os.path.exists(avatar_path):
+        visual.ImageStim(win, image=avatar_path, pos=(x, y), size=(avatar_size, avatar_size)).draw()
+    else:
+        visual.Rect(win, pos=(x, y), width=avatar_size, height=avatar_size, fillColor='green').draw()
+
+    # Texto de inventario en la parte inferior
+    txt = 'Inventario: '
+    if carrying:
+        nombres = [os.path.splitext(ANIMALES_IMG[i])[0].capitalize() for i in carrying]
+        txt += ', '.join(nombres)
+
+    visual.TextStim(
+        win,
+        text=txt,
+        pos=(0, grid_bottom_y - text_spacing * 1),
+        color='black',
+        height=text_height,
+        wrapWidth=scr_res[0] * 0.8
+    ).draw()
+def execute_planned_moves_animated(animal_pos, home_pos, avatar_pos, carrying, delivered, planned_moves,
+                                  moves_left, animal_agarrado_time, animal_entregado_time,
+                                  t_inicio, recogida_orden, entrega_orden, secuencia, movimientos_ensayo):
+    """Ejecuta la secuencia de movimientos planeados con una breve pausa entre cada paso."""
+    current_pos = avatar_pos
+
+    # Define the pause duration after each move
+    PAUSE_AFTER_MOVE = 0.5  # Adjust this value (in seconds) as needed for desired speed
+
+    for move_idx, move in enumerate(planned_moves):
+        if moves_left <= 0:
+            break
+
+        move_delta = {'up': (0, -1), 'down': (0, 1), 'left': (-1, 0), 'right': (1, 0)}.get(move, (0, 0))
+        if move_delta != (0, 0):
+            movimientos_ensayo[0] += 1
+            moves_left -= 1
+            newpos = (current_pos[0] + move_delta[0], current_pos[1] + move_delta[1])
+
+            # Check if the move is valid (within grid boundaries)
+            if 0 <= newpos[0] < GRID_SIZE and 0 <= newpos[1] < GRID_SIZE:
+                # ===== MOVE AVATAR AND UPDATE STATE =====
+                current_pos = newpos
+                secuencia.append(current_pos)
+
+                # ===== PICK UP animals =====
+                animals_picked = []
+                for i, pos in enumerate(animal_pos):
+                    if pos == current_pos and delivered[i] is None and i not in carrying:
+                        carrying.append(i)
+                        animal_pos[i] = None  # Remove animal from grid
+                        animals_picked.append(i)
+                        if animal_agarrado_time[i] is None:
+                            animal_agarrado_time[i] = core.getTime()
+                        recogida_orden.append(os.path.splitext(ANIMALES_IMG[i])[0])
+
+                # ===== DELIVER animals (only to the correct home) ======
+                animals_delivered = []
+                for idx_carry in carrying[:]:  # Iterate on a copy to modify the original list
+                    if current_pos == home_pos[idx_carry] and delivered[idx_carry] is None:
+                        delivered[idx_carry] = True
+                        carrying.remove(idx_carry)
+                        animals_delivered.append(idx_carry)
+                        if animal_entregado_time[idx_carry] is None:
+                            animal_entregado_time[idx_carry] = core.getTime()
+                        entrega_orden.append(os.path.splitext(ANIMALES_IMG[idx_carry])[0])
+
+                # ===== DISPLAY ACTIONS PERFORMED AND CURRENT STATE =====
+                # Traducir el nombre del movimiento para mostrar en pantalla
+                move_names = {'up': 'arriba', 'down': 'abajo', 'left': 'izquierda', 'right': 'derecha'}
+                move_name_spanish = move_names.get(move, move)
+                action_text = f"Movimiento {move_idx + 1}/{len(planned_moves)} - {move_name_spanish}"
+
+                if animals_picked:
+                    animal_names = [os.path.splitext(ANIMALES_IMG[i])[0].capitalize() for i in animals_picked]
+                    action_text += f"\n¡Recogiste: {', '.join(animal_names)}!"
+
+                if animals_delivered:
+                    animal_names = [os.path.splitext(ANIMALES_IMG[i])[0].capitalize() for i in animals_delivered]
+                    action_text += f"\n¡Entregaste: {', '.join(animal_names)}!"
+
+                # Draw the grid with the new avatar position and updated state
+                draw_grid(animal_pos, home_pos, current_pos, carrying, moves_left, 0,
+                          action_text, None,
+                          mostrar_movs=True, mostrar_tiempo=False, planning_mode=False)
+                win.flip()
+
+                # Pause after each move to make it observable
+                core.wait(PAUSE_AFTER_MOVE)
+
+                # If an action (pickup/delivery) occurred, add a slightly longer pause for emphasis
+                if animals_picked or animals_delivered:
+                    core.wait(0.3)  # Additional pause for action feedback (adjust as desired)
+
+    return current_pos, moves_left
+
+# ===== PRESENTACIÓN DE LOS ENSAYOS =====
+if info['Orden_ensayos'] == 'Aleatorio':
+    orden_1 = list(range(N_ENSAYOS))
+    orden_2 = orden_1[:]
+    random.shuffle(orden_1)
+    random.shuffle(orden_2)
+    ensayos_seccion1 = [ensayos[i] for i in orden_1]
+    ensayos_seccion2 = [ensayos[i] for i in orden_2]
+else:  # Secuencial
+    ensayos_seccion1 = ensayos[:]
+    ensayos_seccion2 = ensayos[:]
+
+# ===== REGISTRO DE RESULTADOS EN CSV =====
+with open(csvfile, 'w', newline='', encoding='utf-8') as fcsv:
+    writer = csv.writer(fcsv)
+    # --- MODIFICACIÓN DEL HEADER DEL CSV ---
+    writer.writerow([
+        'Iniciales', 'Sesion', 'Orden_ensayos', 'ID_ensayo', 'Latencia_primera_tecla', 'T_planificacion_total',
+        'Secuencia_planeacion', 'Tiempos_planeacion', 'Backspace_count', 'Orden_recogida', 'Orden_entrega', 
+        'Animales_entregados', 'Animales_no_entregados', 'Plan_final', 'Movimientos',
+        'Conteo_entregas', 'Conteo_recogidas', 'Conteo_recogidas_sin_entregar'
+    ])
+
+    # ===== SECCIÓN DE ENTRENAMIENTO =====
+    # Instrucciones con tamaño de texto adaptativo
+    text_size = max(40, scr_res[1] * 0.037)
+    wrap_width = scr_res[0] * 1.5
+
+    instrucciones_entrenamiento = (
+        "N-Forward"
+    )
+    visual.TextStim(win, text=instrucciones_entrenamiento, color='black',
+                   height=text_size * 3 , wrapWidth=wrap_width, pos=(0, 0)).draw()
+    win.flip()
+    event.waitKeys(keyList=['space'])
+
+    # Puedes usar cualquier configuración de ensayo de entrenamiento que desees.
+    ensayo_entrenamiento = {
+        'id': 'Entrenamiento',
+        'animal_pos': [(3, 2), (3, 4)],
+        'home_pos': [(3, 0), (3, 6)],
+        'avatar_pos': (3, 3),
+        'mov_limit': 9
+    }
+
+    controles_txt = "Planifica: ↑ ↓ ← →"
+    for ensayo_idx, ensayo_conf in enumerate([ensayo_entrenamiento]):
+        n_anim = len(ensayo_conf['animal_pos'])
+        animal_pos = copy.deepcopy(ensayo_conf['animal_pos'])
+        home_pos = list(ensayo_conf['home_pos'])
+        avatar_pos = ensayo_conf['avatar_pos']
+        carrying = []
+        delivered = [None] * n_anim
+        moves_left = ensayo_conf['mov_limit']
+        planned_moves = []
+
+        t_inicio = core.getTime()
+        started_moving = False
+
+        # Variables para el registro de planificación
+        planeacion_log = []
+        planeacion_tiempos = []
+        tiempo_primera_tecla = None
+        tiempo_enter = None
+        tiempo_total_planeacion = None
+
+        # Variables para el registro de ejecución
+        animal_agarrado_time = [None] * n_anim
+        animal_entregado_time = [None] * n_anim
+        recogida_orden = []
+        entrega_orden = []
+        movimientos_ensayo = [0] # Esto cuenta los movimientos ejecutados, no los planificados
+
+        # Fase de planificación
+        planning_phase = True
+        while planning_phase and moves_left > 0 and any(d is None for d in delivered):
+            draw_grid(animal_pos, home_pos, avatar_pos, carrying, moves_left, 0, controles_txt,
+                     planned_moves, mostrar_movs=True, mostrar_tiempo=False, planning_mode=True)
+            win.flip()
+
+            keyList = ['up', 'down', 'left', 'right', 'return', 'backspace', 'escape']
+            keys = event.waitKeys(keyList=keyList, maxWait=1.0)
+            if keys is None:
+                continue
+            if 'escape' in keys:
+                break
+
+            key = keys[0]
+            current_time_relative = core.getTime() - t_inicio # Time relative to trial start
+
+            if key in ['up', 'down', 'left', 'right']:
+                if not started_moving:
+                    tiempo_primera_tecla = current_time_relative
+                    started_moving = True
+                # Registrar la tecla y su tiempo
+                planeacion_log.append(key)
+                planeacion_tiempos.append(current_time_relative)
+
+                # Verificar que no exceda el límite de movimientos
+                if len(planned_moves) < ensayo_conf['mov_limit']: # Use ensayo_conf['mov_limit'] for total allowed
+                    planned_moves.append(key)
+            elif key == 'backspace' and planned_moves:
+                # Registrar backspace
+                planeacion_log.append('backspace')
+                planeacion_tiempos.append(current_time_relative)
+                planned_moves.pop()
+            elif key == 'return':
+                # Registrar enter y tiempo total
+                planeacion_log.append('return')
+                planeacion_tiempos.append(current_time_relative)
+                tiempo_enter = current_time_relative
+                if tiempo_primera_tecla is not None:
+                    tiempo_total_planeacion = tiempo_enter - tiempo_primera_tecla
+
+                # Solo ejecutar si se han usado TODOS los movimientos disponibles
+                if len(planned_moves) == ensayo_conf['mov_limit']: # Use ensayo_conf['mov_limit'] for total allowed
+                    # Ejecutar el plan con animación
+                    planning_phase = False
+                    avatar_pos, moves_left = execute_planned_moves_animated(
+                        animal_pos, home_pos, avatar_pos, carrying, delivered, planned_moves,
+                        moves_left, animal_agarrado_time, animal_entregado_time,
+                        t_inicio, recogida_orden, entrega_orden, [], movimientos_ensayo # 'secuencia' from execute_planned_moves_animated is local now
+                    )
+                    # planned_moves = []  # Clear the plan after executing it if you don't want it stored in `planned_moves` for logging
+
+                    # Mostrar resultado final
+                    final_message = "¡Plan ejecutado completamente!"
+                    if all(d is not None for d in delivered):
+                        final_message += "\n¡Todos los animales fueron entregados!"
+                    else:
+                        final_message += f"\nAnimales entregados: {sum(1 for d in delivered if d is not None)}/{len(delivered)}"
+
+                    draw_grid(animal_pos, home_pos, avatar_pos, carrying, moves_left, 0,
+                             final_message, None,
+                             mostrar_movs=True, mostrar_tiempo=False, planning_mode=False)
+                    win.flip()
+                    core.wait(3.0)  # Pausa para mostrar el resultado final
+                    cleanup_memory()
+
+                    # The trial ends after using all moves
+                    break
+
+        # --- MODIFICACIÓN DEL REGISTRO DE DATOS ---
+        # Convertir logs a strings
+        secuencia_planeacion_str = ','.join(planeacion_log)
+        tiempos_planeacion_str = ','.join([str(round(t,3)) for t in planeacion_tiempos])
+        backspace_count = planeacion_log.count('backspace')
+        plan_final_str = ','.join(planned_moves) if planned_moves else ''
+
+        # Calcular animales entregados y no entregados
+        animales_entregados = []
+        animales_no_entregados = []
+        for i in range(n_anim):
+            animal_name = os.path.splitext(ANIMALES_IMG[i])[0]
+            if delivered[i]:
+                animales_entregados.append(animal_name)
+            else:
+                animales_no_entregados.append(animal_name)
+        animales_entregados_str = ','.join(animales_entregados)
+        animales_no_entregados_str = ','.join(animales_no_entregados)
+        conteo_entregas = len(entrega_orden)
+        conteo_recogidas = len(recogida_orden)
+        conteo_recogidas_sin_entregar = len(animales_no_entregados)
+
+        # Escribir una sola fila por ensayo
+        writer.writerow([
+        info['Iniciales'],
+        info['Sesion'],
+        info['Orden_ensayos'],
+        ensayo_conf['id'],
+        round(tiempo_primera_tecla, 3) if tiempo_primera_tecla is not None else '',
+        round(tiempo_total_planeacion, 3) if tiempo_total_planeacion is not None else '',
+        secuencia_planeacion_str,
+        tiempos_planeacion_str,
+        backspace_count,
+        ','.join(recogida_orden),
+        ','.join(entrega_orden),
+        animales_entregados_str,
+        animales_no_entregados_str,
+        plan_final_str,
+        ensayo_conf['mov_limit'],
+        conteo_entregas,
+        conteo_recogidas,
+        conteo_recogidas_sin_entregar
+])
+
+    msg = "¡Entrenamiento terminado!\n\nPresiona la BARRA ESPACIADORA para comenzar la tarea"
+    visual.TextStim(win, text=msg, color='black', height=max(70, scr_res[1] * 0.037), wrapWidth=int(scr_res[0] * 0.9),
+                   pos=(0, 0)).draw()
+    win.flip()
+    event.waitKeys(keyList=['space'])
+
+    # ===== SECCION 1: SIN PRESION DE TIEMPO CON PLANIFICACIÓN =====
+    for ensayo_idx, ensayo_conf in enumerate(ensayos_seccion1):
+        n_anim = len(ensayo_conf['animal_pos'])
+        animal_pos = copy.deepcopy(ensayo_conf['animal_pos'])
+        home_pos = list(ensayo_conf['home_pos'])
+        avatar_pos = ensayo_conf['avatar_pos']
+        carrying = []
+        delivered = [None] * n_anim
+        moves_left = ensayo_conf['mov_limit']
+        planned_moves = []
+
+        t_inicio = core.getTime()
+        started_moving = False
+
+        # Variables para el registro de planificación
+        planeacion_log = []
+        planeacion_tiempos = []
+        tiempo_primera_tecla = None
+        tiempo_enter = None
+        tiempo_total_planeacion = None
+
+        # Variables para el registro de ejecución
+        animal_agarrado_time = [None] * n_anim
+        animal_entregado_time = [None] * n_anim
+        recogida_orden = []
+        entrega_orden = []
+        movimientos_ensayo = [0]
+
+
+        # Fase de planificación
+        planning_phase = True
+        while planning_phase and moves_left > 0 and any(d is None for d in delivered):
+            draw_grid(animal_pos, home_pos, avatar_pos, carrying, moves_left, 0, controles_txt,
+                     planned_moves, mostrar_movs=True, mostrar_tiempo=False, planning_mode=True)
+            win.flip()
+
+            keyList = ['up', 'down', 'left', 'right', 'return', 'backspace', 'escape']
+            keys = event.waitKeys(keyList=keyList, maxWait=1.0)
+            if keys is None:
+                continue
+            if 'escape' in keys:
+                break
+
+            key = keys[0]
+            current_time_relative = core.getTime() - t_inicio
+
+            if key in ['up', 'down', 'left', 'right']:
+                if not started_moving:
+                    tiempo_primera_tecla = current_time_relative
+                    started_moving = True
+                # Registrar la tecla y su tiempo
+                planeacion_log.append(key)
+                planeacion_tiempos.append(current_time_relative)
+
+                # Verificar que no exceda el límite de movimientos
+                if len(planned_moves) < ensayo_conf['mov_limit']: # Use ensayo_conf['mov_limit'] for total allowed
+                    planned_moves.append(key)
+            elif key == 'backspace' and planned_moves:
+                # Registrar backspace
+                planeacion_log.append('backspace')
+                planeacion_tiempos.append(current_time_relative)
+                planned_moves.pop()
+            elif key == 'return':
+                # Registrar enter y tiempo total
+                planeacion_log.append('return')
+                planeacion_tiempos.append(current_time_relative)
+                tiempo_enter = current_time_relative
+                if tiempo_primera_tecla is not None:
+                    tiempo_total_planeacion = tiempo_enter - tiempo_primera_tecla
+                # Only execute if all available moves have been used
+                if len(planned_moves) == ensayo_conf['mov_limit']: # Use ensayo_conf['mov_limit'] for total allowed
+                    # Execute the plan with animation
+                    planning_phase = False
+                    avatar_pos, moves_left = execute_planned_moves_animated(
+                        animal_pos, home_pos, avatar_pos, carrying, delivered, planned_moves,
+                        moves_left, animal_agarrado_time, animal_entregado_time,
+                        t_inicio, recogida_orden, entrega_orden, [], movimientos_ensayo
+                    )
+                    # planned_moves = [] # Clear the plan if you don't want it stored in `planned_moves` for logging
+
+                    # Show final result
+                    final_message = "¡Plan ejecutado completamente!"
+                    if all(d is not None for d in delivered):
+                        final_message += "\n¡Todos los animales fueron entregados!"
+                    else:
+                        final_message += f"\nAnimales entregados: {sum(1 for d in delivered if d is not None)}/{len(delivered)}"
+
+                    draw_grid(animal_pos, home_pos, avatar_pos, carrying, moves_left, 0,
+                             final_message, None,
+                             mostrar_movs=True, mostrar_tiempo=False, planning_mode=False)
+                    win.flip()
+                    core.wait(3.0)  # Pause to show final result
+
+                    # The trial ends after using all moves
+                    break
+
+        # --- MODIFICACIÓN DEL REGISTRO DE DATOS ---
+        # Convertir logs a strings
+        secuencia_planeacion_str = ','.join(planeacion_log)
+        tiempos_planeacion_str = ','.join([str(round(t,3)) for t in planeacion_tiempos])
+        backspace_count = planeacion_log.count('backspace')
+        plan_final_str = ','.join(planned_moves) if planned_moves else ''
+
+        # Calcular animales entregados y no entregados
+        animales_entregados = []
+        animales_no_entregados = []
+        for i in range(n_anim):
+            animal_name = os.path.splitext(ANIMALES_IMG[i])[0]
+            if delivered[i]:
+                animales_entregados.append(animal_name)
+            else:
+                animales_no_entregados.append(animal_name)
+        animales_entregados_str = ','.join(animales_entregados)
+        animales_no_entregados_str = ','.join(animales_no_entregados)
+        conteo_entregas = len(entrega_orden)
+        conteo_recogidas = len(recogida_orden)
+        conteo_recogidas_sin_entregar = len(animales_no_entregados)
+
+        # Escribir una sola fila por ensayo
+        writer.writerow([
+        info['Iniciales'],
+        info['Sesion'],
+        info['Orden_ensayos'],
+        ensayo_conf['id'],
+        round(tiempo_primera_tecla, 3) if tiempo_primera_tecla is not None else '',
+        round(tiempo_total_planeacion, 3) if tiempo_total_planeacion is not None else '',
+        secuencia_planeacion_str,
+        tiempos_planeacion_str,
+        backspace_count,
+        ','.join(recogida_orden),
+        ','.join(entrega_orden),
+        animales_entregados_str,
+        animales_no_entregados_str,
+        plan_final_str,
+        ensayo_conf['mov_limit'],
+        conteo_entregas,
+        conteo_recogidas,
+        conteo_recogidas_sin_entregar
+])
+
+        msg = "Ensayo completado\n\nPresiona la BARRA ESPACIADORA para continuar"
+        visual.TextStim(win, text=msg, color='black', height=70, wrapWidth=int(scr_res[0] * 0.9), pos=(0, 0)).draw()
+        win.flip()
+        resp = event.waitKeys(keyList=['space', 'escape'])
+        if resp and 'escape' in resp:
+            break
+
+# ===== FINALIZACIÓN DE LA TAREA =====
+visual.TextStim(win, text="Tarea terminada\n\n¡Gracias por participar!", color='black', height=70,
+               wrapWidth=int(scr_res[0] * 0.9), pos=(0, 0)).draw()
+win.flip();
+event.waitKeys()
+win.close();
+core.quit()
